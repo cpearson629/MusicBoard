@@ -2,12 +2,12 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loginAction } from "@/lib/actions";
 
 const schema = z.object({
   email: z.string().email(),
@@ -26,16 +26,9 @@ export default function LoginForm() {
 
   const onSubmit = async (data: FormData) => {
     setError(null);
-    const result = await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      redirect: false,
-    });
-
+    const result = await loginAction(data.email, data.password, callbackUrl);
     if (result?.error) {
-      setError("Invalid email or password");
-    } else {
-      window.location.href = callbackUrl;
+      setError(result.error);
     }
   };
 
