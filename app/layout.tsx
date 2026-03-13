@@ -4,7 +4,6 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { SessionProvider } from "next-auth/react";
 import Navbar from "@/components/layout/Navbar";
-import { auth } from "@/lib/auth";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -13,13 +12,12 @@ export const metadata: Metadata = {
   description: "Music discussion forum for fans of all genres",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-          <SessionProvider session={session}>
+          <SessionProvider>
             <Navbar />
             <main>{children}</main>
           </SessionProvider>
