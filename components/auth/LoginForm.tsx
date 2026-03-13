@@ -1,39 +1,39 @@
 "use client";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/lib/actions";
 
-const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-type FormData = z.infer<typeof schema>;
-
 export default function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
   const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  });
-
-  const onSubmit = async (data: FormData) => {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
-    const result = await loginAction(data.email, data.password, callbackUrl);
-    if (result?.error) {
-      setError(result.error);
-    }
-  };
+    const form = e.currentTarget;
+    const email = (form.elements.namedItem("email") as HTMLInputElement).value;
+    const password = (form.elements.namedItem("password") as HTMLInputElement).value;
+
+    startTransition(async () => {
+      try {
+        const result = await loginAction(email, password, callbackUrl);
+        if (result?.error) {
+          setError(result.error);
+        }
+      } catch (err) {
+        // NEXT_REDIRECT is thrown on success — not an error
+        throw err;
+      }
+    });
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
           {error}
@@ -41,16 +41,14 @@ export default function LoginForm() {
       )}
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" {...register("email")} />
-        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+        <Input id="email" name="email" type="email" required />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="password">Password</Label>
-        <Input id="password" type="password" {...register("password")} />
-        {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+        <Input id="password" name="password" type="password" required />
       </div>
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? "Signing in..." : "Sign in"}
+      <Button type="submit" className="w-full" disabled={isPending}>
+        {isPending ? "Signing in..." : "Sign in"}
       </Button>
     </form>
   );
