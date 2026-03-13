@@ -1,54 +1,49 @@
 "use client";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { signIn } from "next-auth/react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const schema = z.object({
-  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, "Only letters, numbers, _ and -"),
-  email: z.string().email(),
-  password: z.string().min(8, "At least 8 characters"),
-});
-type FormData = z.infer<typeof schema>;
-
 export default function RegisterForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  });
-
-  const onSubmit = async (data: FormData) => {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setError(null);
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const form = e.currentTarget;
+    const username = (form.elements.namedItem("username") as HTMLInputElement).value.trim();
+    const email = (form.elements.namedItem("email") as HTMLInputElement).value.trim();
+    const password = (form.elements.namedItem("password") as HTMLInputElement).value;
 
-    if (!res.ok) {
-      const json = await res.json();
-      setError(json.error ?? "Registration failed");
-      return;
-    }
+    startTransition(async () => {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password }),
+      });
 
-    await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      callbackUrl: "/",
+      if (!res.ok) {
+        const json = await res.json();
+        setError(json.error ?? "Registration failed");
+        return;
+      }
+
+      // Auto-login after registration
+      const result = await signIn("credentials", { email, password, redirect: false });
+      if (result?.error) {
+        window.location.href = "/login";
+      } else {
+        window.location.href = "/";
+      }
     });
-    router.push("/");
-    router.refresh();
-  };
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
           {error}
@@ -56,21 +51,18 @@ export default function RegisterForm() {
       )}
       <div className="space-y-1.5">
         <Label htmlFor="username">Username</Label>
-        <Input id="username" {...register("username")} />
-        {errors.username && <p className="text-xs text-destructive">{errors.username.message}</p>}
+        <Input id="username" name="username" required minLength={3} maxLength={30} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" type="email" {...register("email")} />
-        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+        <Input id="email" name="email" type="email" required />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="password">Password</Label>
-        <Input id="password" type="password" {...register("password")} />
-        {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+        <Input id="password" name="password" type="password" required minLength={8} />
       </div>
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? "Creating account..." : "Create account"}
+      <Button type="submit" className="w-full" disabled={isPending}>
+        {isPending ? "Creating account..." : "Create account"}
       </Button>
     </form>
   );
